@@ -1,0 +1,35 @@
+{
+  "name": "wasp",
+  "version": "0.0.1",
+  "description": "Web Action Shooter Proto",
+  "private": true,
+  "scripts": {
+    "build": "webpack",
+    "dev": "webpack serve --open"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shpuld/wasp.git"
+  },
+  "keywords": [
+    "3d",
+    "game"
+  ],
+  "author": "shpuld",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/shpuld/wasp/issues"
+  },
+  "homepage": "https://github.com/shpuld/wasp#readme",
+  "devDependencies": {
+    "css-loader": "^6.8.1",
+    "html-webpack-plugin": "^5.5.3",
+    "style-loader": "^3.3.3",
+    "webpack": "^5.88.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1"
+  },
+  "dependencies": {
+    "three": "^0.154.0"
+  }
+}
