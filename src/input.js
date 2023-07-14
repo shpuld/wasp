@@ -4,7 +4,7 @@ const registerInputListeners = (canvas) => {
   document.addEventListener('keydown', keyDownListener)
   document.addEventListener('keyup', keyUpListener)
   canvas.addEventListener('click', async () => {
-    await canvas.requestPointerLock({ unadjustedMovement: true })
+    await canvas.requestPointerLock(/*{ unadjustedMovement: true }*/)
   })
   canvas.addEventListener('mousemove', mouseListener)
 }
