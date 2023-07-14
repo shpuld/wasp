@@ -1,7 +1,7 @@
 import * as T from 'three'
 import Input from './input'
 import { traceStatics } from './statics'
-import { Trace } from './utils'
+import { Trace, slideBounce } from './utils'
 
 const player = {
   mesh: undefined,
@@ -42,25 +42,38 @@ export const updatePlayer = (time, deltaTime, camera) => {
   V1.copy(player.position)
   V1.y -= 0.01
   traceStatics(player.position, V1, player.sizeMin, player.sizeMax)
-  if (Trace.hitFraction < 1) {
+  if (Trace.hitFraction < 1 && player.velocity.y <= 0) {
     player.position.copy(Trace.endPos)
     player.velocity.y = 0
     onGround = true
   }
+  if (Input.buttons.JUMP.down) {
+    player.velocity.y += 16 * deltaTime
+  }
 
+  const moveAccel = onGround ? 18 : 6
   acceleration.set(0, onGround ? 0 : -9.81, 0)
-    .addScaledVector(forward, Input.movevalues.x * 10)
-    .addScaledVector(right, Input.movevalues.y * 10)
+    .addScaledVector(forward, Input.movevalues.x * moveAccel)
+    .addScaledVector(right, Input.movevalues.y * moveAccel)
 
-  const friction = 3
+  const friction = onGround ? 6 : 2
   V1.set(player.velocity.x, 0, player.velocity.z)
   acceleration.addScaledVector(V1, -friction)
 
   player.velocity.addScaledVector(acceleration, deltaTime)
 
-  V1.copy(player.position).addScaledVector(player.velocity, deltaTime)
-  traceStatics(player.position, V1, player.sizeMin, player.sizeMax)
-  player.position.copy(Trace.endPos)
+  let moveAmount = player.velocity.length() * deltaTime
+
+  for (let i = 0; i < 4; i++) {
+    V2.copy(player.velocity).normalize()
+    V1.copy(player.position).addScaledVector(V2, moveAmount)
+    traceStatics(player.position, V1, player.sizeMin, player.sizeMax)
+    player.position.copy(Trace.endPos)
+    if (Trace.hitFraction < 1) {
+      slideBounce(player.velocity, Trace.hitNormal, 1.0)
+    }
+    moveAmount *= (1 - Trace.hitFraction)
+  }
 
   player.mesh.position.copy(player.position)
   player.mesh.position.y += (player.sizeMin.y + player.sizeMax.y) * 0.5

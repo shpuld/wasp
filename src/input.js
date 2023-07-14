@@ -31,6 +31,7 @@ addInput('FORWARD', ['KeyW'])
 addInput('BACK', ['KeyS'])
 addInput('LEFT', ['KeyA'])
 addInput('RIGHT', ['KeyD'])
+addInput('JUMP', ['Space'])
 
 const keyDownListener = (event) => {
   const actions = Object.keys(buttons)
