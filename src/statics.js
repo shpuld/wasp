@@ -1,15 +1,21 @@
 import * as T from 'three'
-import { setupRay, traceAabb } from './utils'
+import { setupRay, traceAabb, Trace } from './utils'
+import Brick from '../assets/brick.png'
 
 let statics = []
-const MAX_STATICS = 128
+const MAX_STATICS = 256
 
 export const SOLID = {
   NOT: 0,
   BBOX: 1
 }
 
-export const initStatics = () => {
+const loader = new T.TextureLoader()
+const staticMat = new T.MeshStandardMaterial({ map: loader.load(Brick) })
+
+
+export const initStatics = (csm) => {
+  csm.setupMaterial(staticMat)
   for (let i = 0; i < MAX_STATICS; i++) {
     const st = {
       mesh: undefined,
@@ -23,18 +29,31 @@ export const initStatics = () => {
   }
 }
 
-export const addStatic = (scene, mesh, position, sizeMin, sizeMax, solid) => {
+export const updateStaticMesh = (st) => {
+  const w = st.sizeMax.x - st.sizeMin.x
+  const h = st.sizeMax.y - st.sizeMin.y
+  const d = st.sizeMax.z - st.sizeMin.z
+  st.mesh.position.x = (st.sizeMin.x + st.sizeMax.x) * 0.5
+  st.mesh.position.y = (st.sizeMin.y + st.sizeMax.y) * 0.5
+  st.mesh.position.z = (st.sizeMin.z + st.sizeMax.z) * 0.5
+  st.mesh.scale.set(w, h, d)
+}
+
+
+export const addStatic = (scene, sizeMin, sizeMax, solid) => {
   for (let st of statics) {
     if (st.free) {
-      st.mesh = mesh
-      st.position.copy(position)
-      st.sizeMin.addVectors(position, sizeMin)
-      st.sizeMax.addVectors(position, sizeMax)
+      if (!st.mesh) {
+        st.mesh = new T.Mesh(new T.BoxGeometry(), staticMat)
+        st.mesh.castShadow = true
+        st.mesh.receiveShadow = true
+        scene.add(st.mesh)
+      }
+      st.sizeMin.copy(sizeMin)
+      st.sizeMax.copy(sizeMax)
       st.solid = solid
       st.free = false
-      mesh.position.copy(position)
-
-      scene.add(mesh)
+      updateStaticMesh(st)
       return st
     }
   }
@@ -45,6 +64,7 @@ let V2 = new T.Vector3()
 
 export const traceStatics = (startPos, endPos, boxMin, boxMax) => {
   setupRay(startPos, endPos)
+  let shortest = 1.0
   // Box vs box, adjust testable bounding box
   if (boxMin && boxMax) {
     for (let st of statics) {
@@ -56,6 +76,10 @@ export const traceStatics = (startPos, endPos, boxMin, boxMax) => {
         V2.y = st.sizeMax.y - boxMin.y
         V2.z = st.sizeMax.z - boxMin.z
         traceAabb(V1, V2)
+        if (Trace.hitFraction < shortest) {
+          Trace.hitObject = st
+          shortest = Trace.hitFraction
+        }
       }
     }
     return
@@ -64,6 +88,10 @@ export const traceStatics = (startPos, endPos, boxMin, boxMax) => {
   for (let st of statics) {
     if (!st.free) {
       traceAabb(st.sizeMin, st.sizeMax)
+      if (Trace.hitFraction < shortest) {
+        Trace.hitObject = st
+        shortest = Trace.hitFraction
+      }
     }
   }
 }

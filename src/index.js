@@ -1,15 +1,20 @@
 import Input from './input'
-import { initStatics, addStatic, traceStatics, SOLID } from './statics'
+import { initStatics, addStatic, SOLID } from './statics'
 import { initPlayer, updatePlayer } from './player'
-import { Trace } from './utils'
+import { createHud } from './hud'
 import * as T from 'three'
 import './index.css'
 import Skygrid from '../assets/skygrid.png'
+import CSM from 'three-csm'
+
+//@ts-ignore
+T.CSM = CSM
 
 let scene = new T.Scene()
+let csm = undefined
 
-let entities = []
-const MAX_ENTITIES = 64
+let entities = [];
+const MAX_ENTITIES = 64;
 
 const initEntities = () => {
   for (let i = 0; i < MAX_ENTITIES; i++) {
@@ -17,40 +22,39 @@ const initEntities = () => {
       init: undefined,
       update: undefined,
       remove: undefined,
-      free: true
-    }
-    resetEntity(ent)
-    entities.push(ent)
+      free: true,
+    };
+    resetEntity(ent);
+    entities.push(ent);
   }
-}
+};
 
 const updateEntities = () => {
-  entities.map(ent => !ent.free && ent.update())
-}
+  entities.map((ent) => !ent.free && ent.update());
+};
 
 const resetEntity = (ent) => {
-  ent.mesh = undefined
-  ent.update = undefined
-}
+  ent.mesh = undefined;
+  ent.update = undefined;
+};
 
 const addEntity = () => {
   for (ent of entities) {
     if (ent.free) {
-      resetEntity(ent)
-      ent.free = false
-      return ent
+      resetEntity(ent);
+      ent.free = false;
+      return ent;
     }
   }
-}
+};
 
 const removeEntity = (removeMe) => {
   for (ent of entities) {
     if (ent === removeMe) {
-
-      ent.free = false
+      ent.free = false;
     }
   }
-}
+};
 
 /*
  * Plan:
@@ -64,94 +68,128 @@ const removeEntity = (removeMe) => {
  *
  */
 
-
 const addBoxes = () => {
-  let P = new T.Vector3()
-  let min = new T.Vector3()
-  let max = new T.Vector3()
+  let min = new T.Vector3(-16, 0, -16);
+  let max = new T.Vector3(16, 1, 16);
+  addStatic(scene, min, max, SOLID.BBOX)
 
-  const mat = new T.MeshStandardMaterial({ color: 0xe0e0e0 })
-
+  /*
   for (let i = 0; i < 128; i++) {
-    P.randomDirection()
-    P.y *= 0.1
-    P.multiplyScalar(26)
-    min.random().addScalar(0.3).multiplyScalar(-3)
-    max.copy(min).multiplyScalar(-1)
+    min.randomDirection();
+    min.y *= 0.05;
+    min.multiplyScalar(60);
+    snapToGrid(min)
+    max.copy(min)
+    max.x += 0.5 + Math.random() * 16
+    max.z += 0.5 + Math.random() * 16
+    max.y += 0.5 + Math.random() * 6
+    snapToGrid(max)
 
-    const geom = new T.BoxGeometry(max.x * 2, max.y * 2, max.z * 2)
-    const mesh = new T.Mesh(geom, mat)
+    const geom = new T.BoxGeometry();
+    const mesh = new T.Mesh(geom, mat);
 
-    addStatic(scene, mesh, P, min, max, SOLID.BBOX)
+    addStatic(scene, mesh, min, min, max, SOLID.BBOX);
   }
-}
+  */
+};
 
 const main = () => {
-  const camera = new T.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+  const camera = new T.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    250,
+  );
 
-  const renderer = new T.WebGLRenderer()
-  renderer.setSize(window.innerWidth, window.innerHeight)
-  document.body.appendChild(renderer.domElement)
+  const renderer = new T.WebGLRenderer();
 
-  const geom = new T.BoxGeometry(1, 2, 1)
-  const mat = new T.MeshStandardMaterial({ color: 0xe8e8e8 })
-  const cube = new T.Mesh(geom, mat)
-  scene.add(cube)
-  const hemi = new T.HemisphereLight(0x7080b0, 0x202a30, 0.8)
-  scene.add(hemi)
-  const sun = new T.DirectionalLight(0xfff8e0, 1.0)
-  sun.position.set(0.5, 1, 0.25)
-  scene.add(sun)
-  camera.position.z = 5
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = T.PCFSoftShadowMap // or any other type of shadowmap
 
-  const loader = new T.CubeTextureLoader()
-  const cubemap = loader.load([Skygrid, Skygrid, Skygrid, Skygrid, Skygrid, Skygrid])
-  scene.background = cubemap
-  scene.backgroundBlurriness = 0.075
+  let sunDir = new T.Vector3(-0.5, -1, -0.25)
+  sunDir.normalize()
 
-  Input.registerInputListeners(renderer.domElement)
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
 
-  initEntities()
-  initStatics()
-  initPlayer(scene)
+  const hemi = new T.HemisphereLight(0x7080b0, 0x202a30, 0.8);
+  scene.add(hemi);
+  //const sun = new T.DirectionalLight(0xfff8e0, 1.0);
+  //sun.position.copy(sunDir).negate();
+  //scene.add(sun);
+  camera.position.z = 5;
 
-  addBoxes()
+  //@ts-ignore
+  csm = new T.CSM({
+    maxFar: 100,
+    cascades: 4,
+    fade: true,
+    mode: 'logarithmic',
+    shadowBias: 0.0000002,
+    shadowMapSize: 2048,
+    lightDirection: sunDir,
+    lightColor: 0xfff8e0,
+    camera: camera,
+    parent: scene
+  });
 
-  let oldTime = performance.now()
+  csm.fade = true
 
+  const loader = new T.CubeTextureLoader();
+  const cubemap = loader.load([
+    Skygrid,
+    Skygrid,
+    Skygrid,
+    Skygrid,
+    Skygrid,
+    Skygrid,
+  ]);
+  scene.background = cubemap;
+  scene.backgroundBlurriness = 0.075;
+
+  Input.registerInputListeners(renderer.domElement);
+
+  initEntities();
+  initStatics(csm);
+  initPlayer(scene, csm);
+
+  addBoxes();
+
+  createHud();
+
+  let oldTime = performance.now();
+
+  let frameTimes = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  let idx = 0
+  const fpsElem = document.getElementById('fps')
   const startFrame = (timeElapsed) => {
-    const deltaTime = (timeElapsed - oldTime) * 0.001
-    const time = timeElapsed * 0.001
+    const deltaTime = (timeElapsed - oldTime) * 0.001;
+    const time = timeElapsed * 0.001;
 
-    requestAnimationFrame(startFrame)
+    frameTimes[idx] = deltaTime
+    idx++
+    if (idx >= frameTimes.length) idx = 0
+    let worstFrame = 0
+    for (let f = 0; f < frameTimes.length; f++) {
+      if (frameTimes[f] > worstFrame) {
+        worstFrame = frameTimes[f]
+      }
+    }
+    fpsElem.innerHTML = worstFrame * 1000
 
-    Input.processInput()
-    updatePlayer(time, deltaTime, camera)
-    /*
-    camera.setRotationFromEuler(Input.viewangle)
-    // Forward
-    V.set(0, 0, -1)
-    V.applyEuler(Input.viewangle)
-    camera.position.addScaledVector(V, deltaTime * Input.movevalues.x * 4)
-    // Right
-    V.set(1, 0, 0)
-    V.applyEuler(Input.viewangle)
-    camera.position.addScaledVector(V, deltaTime * Input.movevalues.y * 4)
+    requestAnimationFrame(startFrame);
 
-    camera.getWorldDirection(V2)
-    V.copy(camera.position).addScaledVector(V2, 10)
-    V2.set(-0.5, -1, -0.5)
-    V3.set(0.5, 1, 0.5)
-    traceStatics(camera.position, V, V2, V3)
-    cube.position.copy(Trace.endPos)
-    */
+    Input.processInput();
+    updatePlayer(time, deltaTime, camera);
 
-    renderer.render(scene, camera)
+    csm.update(camera.matrix);
+    renderer.render(scene, camera);
 
-    oldTime = timeElapsed
-  }
+    Input.resetReleased();
+    oldTime = timeElapsed;
+  };
 
-  startFrame(0)
-}
+  startFrame(0);
+};
 
-main()
+main();

@@ -7,6 +7,7 @@ module.exports = {
     plugins: [
     new HtmlWebpackPlugin({
       title: 'WASP Three.js',
+      template: './src/index.html'
     }),
   ],
   devtool: 'inline-source-map',
@@ -19,7 +20,7 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
     clean: true,
   },
-    module: {
+  module: {
     rules: [
       {
         test: /\.css$/i,
@@ -31,4 +32,13 @@ module.exports = {
       },
     ],
   },
+  ignoreWarnings: [
+    {
+      module: /three-csm/
+    },
+    {
+      module: /index\.js/,
+      message: /export 'CSM'/
+    }
+  ]
 };

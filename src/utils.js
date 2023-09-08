@@ -1,5 +1,7 @@
 import * as T from 'three'
 
+export const EPSILON = 0.000001
+
 export const slideBounce = (v, n, slideOrBounce = 1) => {
   const dot = v.dot(n)
   v.addScaledVector(n, -1 * dot * slideOrBounce)
@@ -12,6 +14,7 @@ export const Trace = {
   invDir: new T.Vector3(),
   startPos: new T.Vector3(),
   endPos: new T.Vector3(),
+  targetPos: new T.Vector3(),
   hitFraction: 1.0,
   hitObject: undefined,
   hitNormal: new T.Vector3(),
@@ -25,6 +28,7 @@ export const setupRay = (startPos, endPos) => {
   Trace.invDir.z = 1 / Trace.dir.z
   Trace.startPos.copy(startPos)
   Trace.endPos.copy(endPos)
+  Trace.targetPos.copy(endPos)
   Trace.hitFraction = 1.0
   Trace.startSolid = false
   Trace.hitNormal.set(0, 0, 0)
@@ -33,16 +37,9 @@ export const setupRay = (startPos, endPos) => {
 
 export const isInside = (boxMin, boxMax, pos) => pos.x > boxMin.x && pos.x < boxMax.x && pos.y > boxMin.y && pos.y < boxMax.y && pos.z > boxMin.z && pos.z < boxMax.z
 
-const normalForDim = [
-  new T.Vector3(1, 0, 0),
-  new T.Vector3(0, 1, 0),
-  new T.Vector3(0, 0, 1)
-]
-
 export const traceAabb = (boxMin, boxMax) => {
   // https://gamedev.stackexchange.com/questions/18436/most-efficient-aabb-vs-ray-collision-algorithms
   if (isInside(boxMin, boxMax, Trace.startPos)) {
-    console.log('inside')
     Trace.endPos.copy(Trace.startPos)
     Trace.hitFraction = 0
     Trace.startSolid = true
@@ -67,13 +64,14 @@ export const traceAabb = (boxMin, boxMax) => {
   tMax = Math.min(tMax, Math.max(t1, t2))
 
   if (tMax >= tMin) {
-    const length = Trace.startPos.distanceTo(Trace.endPos)
-    if (tMin > length || tMin < 0) {
+    // cuts off later traces that are beyond already hit
+    const targetLength = Trace.startPos.distanceTo(Trace.targetPos)
+    if (tMin > targetLength * Trace.hitFraction || tMin < 0) {
       return false
     }
     // epsilon
-    tMin -= 0.000001
-    Trace.hitFraction = Math.min(1.0, Math.max(0.0, tMin / length))
+    tMin -= EPSILON
+    Trace.hitFraction = Math.min(1.0, Math.max(0.0, tMin / targetLength))
     Trace.endPos.copy(Trace.startPos).addScaledVector(Trace.dir, tMin)
 
     const insideX = Trace.endPos.x > boxMin.x && Trace.endPos.x < boxMax.x
@@ -93,4 +91,49 @@ export const traceAabb = (boxMin, boxMax) => {
   }
 
   return false
+}
+
+export const roundTo = (value, to) => {
+  return Math.round(value / to) * to
+}
+
+export const snapToGrid = (vec, gridSize = 1.0) => {
+  vec.x = Math.round(vec.x / gridSize) * gridSize
+  vec.y = Math.round(vec.y / gridSize) * gridSize // different y res some day?
+  vec.z = Math.round(vec.z / gridSize) * gridSize
+}
+
+let diff = new T.Vector3()
+let intersectionPoint = new T.Vector3()
+export const tracePlane = (planePoint, planeNormal) => {
+  diff.subVectors(Trace.startPos, planePoint)
+  const dot1 = diff.dot(planeNormal)
+  const dot2 = Trace.dir.dot(planeNormal)
+
+  if (Math.abs(dot2) < EPSILON) return // parallel to plane
+
+  const prod = dot1 / dot2
+  if (prod > 0) return // pointing away from the plane
+
+  intersectionPoint.copy(Trace.startPos).addScaledVector(Trace.dir, -prod)
+  const intersectionDist = intersectionPoint.distanceTo(Trace.startPos)
+  const maxTraceLength = Trace.targetPos.distanceTo(Trace.startPos)
+
+  if (intersectionDist <= maxTraceLength) {
+    Trace.endPos.copy(intersectionPoint)
+    Trace.hitFraction = intersectionDist / maxTraceLength
+    Trace.hitNormal.copy(planeNormal)
+  }
+}
+
+export const aabbVolume = (obj) => (obj.sizeMax.x - obj.sizeMin.x) * (obj.sizeMax.y - obj.sizeMin.y) * (obj.sizeMax.z - obj.sizeMin.z)
+
+let V1 = new T.Vector3()
+let V2 = new T.Vector3()
+export const isParallel = (v1, v2) => {
+  V1.copy(v1).normalize()
+  V2.copy(v2).normalize()
+
+  const dot = V1.dot(V2)
+  return (dot >= 1.0 || dot <= -1.0)
 }
